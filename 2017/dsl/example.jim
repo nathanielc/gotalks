@@ -1,0 +1,17 @@
+set masterbedroom/light 50
+var bed_lights = get masterbedroom/light
+set downstairs/light bed_lights
+
+scene nightime {
+    set */light off
+    set */door locked
+    set porch/light on
+
+    when
+        */door is unlocked
+    wait 5m
+         set $ locked
+}
+
+at 9:00 PM start nightime
+at 8:00 AM stop nightime

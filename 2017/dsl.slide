@@ -1,0 +1,186 @@
+Building a DSL with Go
+Having fun with Home Automation
+1 Aug 2017
+Tags: lex, parser, dsl
+
+Nathaniel Cook
+Software Engineer, InfluxData
+nathaniel@influxdb.com
+@nathanielvcook
+
+We are hiring!
+https://www.influxdata.com/careers/
+
+* What is are Domain Specific Languages?
+
+A domain specific language (DSL) is language that has been tailored to a specific domain.
+
+- Internal -- Implemented as a subset of an existing language
+- External -- Completely independent of any host language.
+
+DSLs are not general purpose languages.
+
+* Why create a DSL?
+
+They are specific to a domain
+
+- Enables the language to be expressed at the correct abstraction for the problem domain.
+- Enables a wider audience for the language who may not be computer science experts but are domain experts.
+- Easy to learn because of limited scope.
+
+* Examples:
+
+- Go Templates
+- Rule Engines
+- Configuration Management
+- TICKscript
+
+    var data = stream
+      |from()
+        .database('telegraf')
+        .measurement('mem')
+        .groupBy('host')
+      |window()
+        .period(1m)
+        .every(10s)
+      |mean('used_percent')
+      |alert()
+        .id('{{ index .Tags "host"}}/mem_used')
+        .message('{{ .ID }}:{{ index .Fields "mean" }}')
+        .info(lambda: "mean" > 70)
+        .warn(lambda: "mean" > 85)
+        .crit(lambda: "mean" > 90)
+
+* Home Automation DSL
+
+For fun and profit we are going to explore a home automation based DSL.
+
+.code dsl/example.jim
+
+* Components of a DSL
+
+.code dsl/interfaces.go /^\/\/ Lex/,/func Lex/
+
+.code dsl/interfaces.go /^\/\/ Parse/,/func Parse/
+
+.code dsl/interfaces.go /^\/\/ Eval/,/func Eval/
+
+This is intentionally simple.
+
+* Lexing
+
+Consume runes of text and produce a series of tokens.
+
+* Token
+
+The Token type to communicate between the lexer and parser.
+
+.code dsl/snippets.go  /BEGIN token/,/END token/
+
+Example TokenTypes:
+
+.code dsl/snippets.go /BEGIN tokenTypes/,/END tokenTypes/
+
+* State Function Loop:
+
+Define a type _stateFn_ as a recursive type
+.code dsl/snippets.go  /BEGIN stateFn/,/END stateFn/
+
+Loop through each stateFn until we get a nil state.
+.code dsl/snippets.go  /BEGIN lex.run/,/END lex.run/
+
+* Emit
+
+The lexer type provides helper methods to consume runes and output tokens.
+
+.code dsl/snippets.go  /^func.*emit/,/^}/
+.code dsl/snippets.go  /^func.*current/,/^}/
+
+* Example Lexing stateFn
+
+
+.code dsl/snippets.go /^func.*lexNumberOrTimeOrDuration/,/^}/
+.code dsl/snippets.go /^func.*lexTimeDigits/,/^}/
+
+* Control over Behavior of Language
+
+Which version of the time syntax should we use?
+
+- 10:35AM
+- 10:35 AM
+
+Simple one line change:
+
+.code dsl/snippets.go /BEGIN choices/,/END choices/
+
+
+* Parsing
+
+Consume a series of tokens and produce an AST
+
+* Grammar
+
+Write a grammar of production rules:
+
+.code dsl/grammar.md
+
+
+* Building the AST
+
+Build the AST Nodes from production rules.
+
+    SetStatement      = "set" PathMatch Value .
+
+.code dsl/snippets.go /BEGIN AST/,/END AST/
+.code dsl/snippets.go /^func.*setStatement/,/^}/
+
+* Production Methods
+
+    BlockStatement    = SetStatement | GetStatement | VarStatement | AtStatement | WhenStatement .
+
+.code dsl/snippets.go /^func.*blockStatement/,/^}/
+
+
+* Syntax vs Semantics
+
+Not all valid syntax is a valid program.
+
+    get masterbedroom/*
+
+Implementing the syntax to not allow wildcards in the path for _get_ statements would require that the parser have infinite lookahead into the series of tokens to know if a wildcard token existed.
+
+This makes the parser much harder to implement and understand.
+Keep it simple, allow syntax that has no semantic meaning and validate the entire AST later.
+
+* Evaluating
+
+Given an AST perform the prescribed actions.
+
+* Eval Implementation
+
+.code dsl/snippets.go /^func.*eval/,/^}/
+
+* REPL Demo
+
+.code dsl/snippets.go /^func main/,/^}/
+
+* Lessoned Learned From TICKscript
+
+- Writing and maintaining a DSL is not difficult.
+- Write a DSL because you want control over how a user expresses solutions to problems in the domain.
+- DSLs eliminate a whole class of issues because they cannot be expressed in the language.
+- DSLs introduce a whole class of issues because of the things that cannot be expressed in the language ;).
+- Do not make a DSL the only API into the application.
+
+* Resources
+
+.link https://github.com/nathanielc/jim Github Repo of the Jim DSL
+
+.link https://www.youtube.com/watch?v=HxaD_trXwRE Talk by Rob Pike on Lexical Scanning in Go
+
+.link https://golang.org/src/text/template/parse/ Source code for text/template Lexing and Parsing DSL
+
+.link https://github.com/influxdata/kapacitor/tree/master/tick/ Source code for Kapacitor's TICKscript.
+
+.link https://github.com/mqtt-smarthome MQTT Smarthome Specification
+
